@@ -24,16 +24,22 @@ def get_block(blocknum):
 
     response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers= head)
 
-    f = open('block_' + str(blocknum) + '.json', 'w')
+    f = open('data/block_' + str(blocknum) + '.json', 'w')
     f.write(str(response.json()['result']))
     f.close()
-    return response.json()['result']
+    return response.json()
+    #return response.json()['result']
 
 number = int(sys.argv[1])
 
-block = get_block(int(number))
+
+response = get_block(int(number))
+#print("response: ", response)
+
+block = response['result']
 #print(json.dumps(block, indent=4, sort_keys=True))
 
+#print(">", block)
 print("block number: ", block['number'])
 print("total transactions: ", len(block['transactions']))
 
