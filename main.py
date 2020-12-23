@@ -49,30 +49,19 @@ def get_block(blocknum):
     f.write(str(response.json()['result']))
     f.close()
     return response.json()
-    #return response.json()['result']
 
 number = int(sys.argv[1])
 
 response = get_block(int(number))
-#print("response: ", response)
 
 block = response['result']
-#print(json.dumps(block, indent=4, sort_keys=True))
 
-#print(">", block)
 print("block number: ", block['number'])
 print("total transactions: ", len(block['transactions']))
 
-#print(block['transactions'][0])
 
 for ix, tx in enumerate(block['transactions']):
-    #print("\ntransaction", ix, ":", tx['hash'])
-    #print("from:", tx['from'])
-    #print("input:", tx['input'])
-    if tx['to'] == None:
-        pass
-        #print("\tdeploy contract")
-    else:
+    if tx['to'] != None:
         payload = {
             'method': 'eth_getCode',
             'params': [tx['to'], hex(number)],
@@ -84,8 +73,8 @@ for ix, tx in enumerate(block['transactions']):
             if len(code) > 2:
                 print("\ntransaction", ix, ":", tx['hash'])
                 print("from:", tx['from'])
-                print("input:", tx['input'])
-                print("code: ", code[2:])
+                #print("input:", tx['input'])
+                #print("code: ", code[2:])
                 bytecode = bytes.fromhex(code[2:])
                 chunks = chunkify(bytecode)
                 print("chunks: ", len(chunks))
@@ -97,22 +86,17 @@ for ix, tx in enumerate(block['transactions']):
 
                 response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
 
-                #print('response: ', response.json())
                 pcs = response.json()['result']
-                #print('PCs: ', result)
+
                 used_chunks = []
                 for pc in pcs:
                     c = int(pc) // 32
                     if c not in used_chunks:
                         used_chunks.append(c)
-                        #print('PC: ', pc, ' - chunk: ', int(pc) // 32 + 1)
-                print("touched chunks: ", len(used_chunks))
-                print(":", used_chunks)
-                
 
-                #for r in result:
-                    #print('touched_account: ', r)
-                    ##print('code: ', response['result']['code'])
+                print("total touched chunks: ", len(used_chunks))
+                print("touched chunks:", used_chunks)
+
 
         except:
             print("ERROR with eth_getCode, response:", response.json())
