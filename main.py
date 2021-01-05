@@ -35,6 +35,18 @@ def chunkify(program):
             this_chunk_code_start = pos
     return chunks
 
+def get_current_block():
+    payload = {
+        'method': 'eth_blockNumber',
+        'params': [],
+        'id': 1
+    }
+
+    response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers= head)
+
+    return int(response.json()['result'], 16)
+
+
 # get block
 def get_block(blocknum):
     payload = {
@@ -50,13 +62,11 @@ def get_block(blocknum):
     f.close()
     return response.json()
 
-number = int(sys.argv[1])
-
-response = get_block(int(number))
-
+block_number = get_current_block()
+response = get_block(block_number)
 block = response['result']
 
-print("block number: ", block['number'])
+print("block number: ", block_number)
 print("total transactions: ", len(block['transactions']))
 
 
@@ -64,7 +74,7 @@ for ix, tx in enumerate(block['transactions']):
     if tx['to'] != None:
         payload = {
             'method': 'eth_getCode',
-            'params': [tx['to'], hex(number)],
+            'params': [tx['to'], hex(block_number)],
             'id': 1
         }
         response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
@@ -73,11 +83,8 @@ for ix, tx in enumerate(block['transactions']):
             if len(code) > 2:
                 print("\ntransaction", ix, ":", tx['hash'])
                 print("from:", tx['from'])
-                #print("input:", tx['input'])
-                #print("code: ", code[2:])
-                bytecode = bytes.fromhex(code[2:])
-                chunks = chunkify(bytecode)
-                print("chunks: ", len(chunks))
+                print("to:  ", tx['to'])
+
                 payload = {
                     'method': 'debug_traceTransaction',
                     'params': [tx['hash'], {'tracer': tracer_script}],
@@ -85,19 +92,28 @@ for ix, tx in enumerate(block['transactions']):
                 }
 
                 response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
+                result = response.json()['result']
+                trace = result['trace']
+                opcodes = result['opcodes']
+                callstack = result['callstack']
+                cslen = result['cslen']
 
-                pcs = response.json()['result']
 
-                used_chunks = []
-                for pc in pcs:
-                    c = int(pc) // 32
-                    if c not in used_chunks:
-                        used_chunks.append(c)
+                print('total opcodes: ', len(opcodes))
+                print('depth: ', len(callstack))
+                print('trace: ', trace.keys())
 
-                print("total touched chunks: ", len(used_chunks))
-                print("touched chunks:", used_chunks)
-
+                print('opcodes:')
+                print('pc\t\topcode\t\tfrom\t\t\tto')
+                count = 0
+                for op in opcodes:
+                    if op['op'] == 'CALL' or op['op'] == 'STATICCALL':
+                        print(op['pc'], '\t\t', op['op'], '\t', callstack[count]['from'], callstack[count]['to'])
+                        count += 1
+                    else:
+                        print(op['pc'], '\t\t', op['op'])
 
         except:
             print("ERROR with eth_getCode, response:", response.json())
             print(response.text)
+
