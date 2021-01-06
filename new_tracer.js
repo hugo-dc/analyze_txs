@@ -41,10 +41,10 @@
   },
   
   step: function(log, db) {
-    
+    var addr = log.contract.getAddress()    
     if (this.trace === null) {
       this.trace = {}
-      var addr = log.contract.getAddress()
+
       var acc = toHex(addr)
       if (this.trace[acc] === undefined) {
         var bytecode = toHex(db.getCode(addr))
@@ -57,7 +57,7 @@
     }
     var op = log.op.toString()
 
-    this.ops.push({ pc: log.getPC(), op: op })
+    this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
 
     if (op == 'CREATE' || op == 'CREATE2') {
       var inOff = log.stack.peek(1).valueOf()
@@ -66,7 +66,7 @@
       // Assemble the internal call report and store for completion
       var call = {
 	type:    op,
-	from:    toHex(log.contract.getAddress()),
+	from:    toHex(addr),
         to:      '',
 	input:   toHex(log.memory.slice(inOff, inEnd)),
 	//gasIn:   log.getGas(),
@@ -106,6 +106,19 @@
       if (isPrecompiled(to)) {
 	return
       }
+
+      // Add to the trace
+      var acc = toHex(to)
+      if (this.trace[acc] == undefined) {
+        var bytecode = toHex(db.getCode(to))
+        this.trace[acc] = {
+          chunks: this.chunkify(bytecode),
+          touched_chunks: [], // TODO
+          calls: []
+        }
+        
+      }
+      
       var off = (op == 'DELEGATECALL' || op == 'STATICCALL' ? 0 : 1)
 
       var inOff = log.stack.peek(2 + off).valueOf()

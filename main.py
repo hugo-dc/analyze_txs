@@ -70,6 +70,7 @@ print("block number: ", block_number)
 print("total transactions: ", len(block['transactions']))
 
 
+contract = ''
 for ix, tx in enumerate(block['transactions']):
     if tx['to'] != None:
         payload = {
@@ -104,14 +105,18 @@ for ix, tx in enumerate(block['transactions']):
                 print('trace: ', trace.keys())
 
                 print('opcodes:')
-                print('pc\t\topcode\t\tfrom\t\t\tto')
+                print('pc\t\topcode\t\t\tcontract\t\t\tto')
+
                 count = 0
+
+                touched_opcodes = {}
                 for op in opcodes:
+                    contract = op['contract']
                     if op['op'] == 'CALL' or op['op'] == 'STATICCALL':
-                        print(op['pc'], '\t\t', op['op'], '\t', callstack[count]['from'], callstack[count]['to'])
+                        print(op['pc'], '\t\t', op['op'], '\t\t\t', op['contract'], callstack[count]['to'])
                         count += 1
                     else:
-                        print(op['pc'], '\t\t', op['op'])
+                        print(op['pc'], '\t\t', op['op'], '\t\t\t', op['contract'])
 
         except:
             print("ERROR with eth_getCode, response:", response.json())
