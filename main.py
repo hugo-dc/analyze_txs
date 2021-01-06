@@ -104,19 +104,40 @@ for ix, tx in enumerate(block['transactions']):
                 print('depth: ', len(callstack))
                 print('trace: ', trace.keys())
 
-                print('opcodes:')
-                print('pc\t\topcode\t\t\tcontract\t\t\tto')
-
                 count = 0
-
                 touched_opcodes = {}
+                log = {}
                 for op in opcodes:
                     contract = op['contract']
+                    pc = op['pc']
+                    if contract in touched_opcodes.keys():
+                        touched_opcodes[contract].add(pc)
+                    else:
+                        touched_opcodes[contract] = set([pc])
                     if op['op'] == 'CALL' or op['op'] == 'STATICCALL':
-                        print(op['pc'], '\t\t', op['op'], '\t\t\t', op['contract'], callstack[count]['to'])
+                        line = str(op['pc']) + '\t\t' + op['op'] + '\t\t\t' + op['contract'] + ' ' + callstack[count]['to']
                         count += 1
                     else:
-                        print(op['pc'], '\t\t', op['op'], '\t\t\t', op['contract'])
+                        line = str(op['pc']) + '\t\t' + op['op'] + '\t\t\t' + op['contract']
+                    if contract not in log.keys():
+                        log[contract] = [line]
+                    else:
+                        log[contract].append(line)
+                        
+                for k in touched_opcodes.keys():
+                    print('key:', k)
+                    pcs = list(touched_opcodes[k])
+                    chunks = set()
+                    for pc in pcs:
+                        chunk = pc // 32
+                        chunks.add(chunk)
+                    chunks = list(chunks)
+                    chunks.sort()
+                    print('chunks: ', chunks)
+                    lines = log[k]
+                    #for line in lines:
+                    #    print(line)
+
 
         except:
             print("ERROR with eth_getCode, response:", response.json())
