@@ -57,9 +57,10 @@
     }
     var op = log.op.toString()
 
-    this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
+
 
     if (op == 'CREATE' || op == 'CREATE2') {
+      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
       var inOff = log.stack.peek(1).valueOf()
       var inEnd = inOff + log.stack.peek(2).valueOf()
 
@@ -81,6 +82,7 @@
     }
 
     if (op == 'SELFDESTRUCT') {
+      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
       var left = this.callstack.length
       if (this.callstack[left-1].calls === undefined) {
 	this.callstack[left-1].calls = []
@@ -103,6 +105,7 @@
     if (op == 'CALL' || op == 'CALLCODE' || op == 'DELEGATECALL' || op == 'STATICCALL') {
       // Skip any pre-compile invocations, those are just fancy opcodes
       var to = toAddress(log.stack.peek(1).toString(16))
+      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr), calling: toHex(to) })
       if (isPrecompiled(to)) {
 	return
       }
@@ -148,7 +151,8 @@
 
     // If an existing call is returning, pop off the call stack
     if (op == 'REVERT') {
-      this.callstack[this.callstack.length - 1].error = "execution reverted"
+      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
+      //this.callstack[this.callstack.length - 1].error = "execution reverted"
       return
     }
     //if (op == '
