@@ -155,6 +155,8 @@
       //this.callstack[this.callstack.length - 1].error = "execution reverted"
       return
     }
+    this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
+
     //if (op == '
     //this.ops.push(log.getPC())
     //this.trace.push(log.op.toString())

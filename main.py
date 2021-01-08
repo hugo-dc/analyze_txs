@@ -13,7 +13,7 @@ ts_file = open('new_tracer.js', 'r')
 tracer_script = ts_file.read()
 ts_file.close()
 
-def get_current_block():
+def get_current_block_number():
     payload = {
         'method': 'eth_blockNumber',
         'params': [],
@@ -33,14 +33,24 @@ def get_block(blocknum):
     response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers= head)
     return response.json()
 
+def write_log(number, lines):
+    filename='data/log_' + str(number) + '.txt'
+    output = open(filename, 'w')
+    print('log length: ', len(lines))
+    for line in lines:
+        output.write(line + '\n')
+    output.close()
+    
 def write_block(number, trace):
-    output_file = open('data/block_' + str(number) + '.json', 'w')
+    filename='data/block_' + str(number) + '.json'
+    output_file = open(filename, 'w')
     output_file.write(json.dumps(trace))
     output_file.close()
+    print(filename)
 
 block_trace = {} # Contains the result of a block execution
-block_number = get_current_block()
-block_trace[str(block_number)] = [] # The block trace will contain a list of transactions calling contracts
+block_number = get_current_block_number()
+block_trace[str(block_number)] = {} # The block trace will contains transactions calling contracts
 
 response = get_block(block_number)
 block = response['result']
@@ -55,9 +65,10 @@ for ix, tx in enumerate(block['transactions']):
         }
         response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
         code = response.json()['result']
-        if len(code) > 2:
+        if len(code) > 2:  # check it's calling a contract
             transaction_trace = {'execution': [], 'contracts': []}
-            block_trace[str(block_number)].append({ tx['hash']: transaction_trace })
+            #block_trace[str(block_number)].append({ tx['hash']: transaction_trace }) # stores current transaction hash
+            block_trace[str(block_number)][ tx['hash'] ] = transaction_trace
             
             payload = {
                 'method': 'debug_traceTransaction',
@@ -74,9 +85,16 @@ for ix, tx in enumerate(block['transactions']):
             count = 0
             touched_opcodes = {}
             log = {}
+            log_general = []
+            execution_trace = []
+            print('transaction: ', tx['hash'])
+            print('opcodes: ', len(opcodes))
             for op in opcodes:
                 contract = op['contract']
                 pc = op['pc']
+
+                # save opcode execution in trace
+                #block_trace[str(block_number)][tx['hash']['execution'].append({ 'contract': contract, 'pc': pc, 'op': op['op'], 'calling': op['calling'] })
                 if contract in touched_opcodes.keys():
                     touched_opcodes[contract].add(pc)
                 else:
@@ -84,13 +102,17 @@ for ix, tx in enumerate(block['transactions']):
                 if op['op'] == 'CALL' or op['op'] == 'STATICCALL':
                     line = str(op['pc']) + '\t\t' + op['op'] + '\t\t\t' + op['contract'] + ' ' + op['calling']
                     count += 1
+                    execution_trace.append({'contract': contract, 'pc': pc, 'op': op['op'], 'calling': op['calling']})
                 else:
                     line = str(op['pc']) + '\t\t' + op['op'] + '\t\t\t' + op['contract']
+                    execution_trace.append({'contract': contract, 'pc': pc, 'op': op['op'], 'calling': ''})
                 if contract not in log.keys():
                     log[contract] = [line]
                 else:
                     log[contract].append(line)
-                    
+                log_general.append(line)
+
+            block_trace[str(block_number)][tx['hash']]['execution'] = execution_trace
             for k in touched_opcodes.keys():
                 pcs = list(touched_opcodes[k])
                 chunks = set()
@@ -102,4 +124,5 @@ for ix, tx in enumerate(block['transactions']):
                 lines = log[k]
 
 write_block(block_number, block_trace)
+write_log(block_number, log_general)
 
