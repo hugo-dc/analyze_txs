@@ -1,9 +1,6 @@
 {
-  ops: [],
-  trace: null,
-  callstack: [],
-  cslen: [],
-  cslencounter: 0,
+  execution: [],
+  contracts: {},
 
   chunkify: function(hexstring) {
     pos = 0
@@ -31,7 +28,7 @@
         chunk = code.slice(this_chunk_start, this_chunk_start + 32)
         chunks.push({'code_start': this_chunk_code_start, 'chunk': chunk.join('')})
         this_chunk_start += 32
-        this_chunk_code_start = pos  // not used
+        this_chunk_code_start = pos
       }
     }
     chunk = code.slice(this_chunk_start, code.length)
@@ -42,132 +39,59 @@
   
   step: function(log, db) {
     var addr = log.contract.getAddress()    
-    if (this.trace === null) {
-      this.trace = {}
+    var acc = toHex(addr)
+    var op = log.op.toString()
+    var pc = log.getPC()
+    var execution_trace = { contract: acc, pc: pc, op: op, calling: '' }
 
-      var acc = toHex(addr)
-      if (this.trace[acc] === undefined) {
-        var bytecode = toHex(db.getCode(addr))
-        this.trace[acc] = {
-          chunks: this.chunkify(bytecode), // each chunk is (<code_start>, <chunk> )
-          touched_chunks: [], // TODO
-          calls: []
-        }
+    if (this.contracts[acc] === undefined) {
+      var bytecode = toHex(db.getCode(addr))
+      var chunks = this.chunkify(bytecode)
+      // save initial contract
+      this.contracts[acc] = {
+      code: bytecode,
+      chunks: chunks,
+      touched_chunks: [], // TODO
+      calls: []           // TODO
       }
     }
-    var op = log.op.toString()
-
-
 
     if (op == 'CREATE' || op == 'CREATE2') {
-      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
-      var inOff = log.stack.peek(1).valueOf()
-      var inEnd = inOff + log.stack.peek(2).valueOf()
-
-      // Assemble the internal call report and store for completion
-      var call = {
-	type:    op,
-	from:    toHex(addr),
-        to:      '',
-	input:   toHex(log.memory.slice(inOff, inEnd)),
-	//gasIn:   log.getGas(),
-	//gasCost: log.getCost(),
-	value:   '0x' + log.stack.peek(0).toString(16)
-      }
-      
-      this.callstack.push(call)
-      this.cslencounter += 1
-      this.cslen.push(this.cslencounter)
+      execution_trace = { contract: acc, pc: pc, op: op, calling: 'NEW_CONTRACT' }
       return
     }
 
     if (op == 'SELFDESTRUCT') {
-      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
-      var left = this.callstack.length
-      if (this.callstack[left-1].calls === undefined) {
-	this.callstack[left-1].calls = []
-      }
-      this.callstack[left-1].calls.push({
-	type:    op,
-	from:    toHex(log.contract.getAddress()),
-	to:      toHex(toAddress(log.stack.peek(0).toString(16))),
-	//gasIn:   log.getGas(),
-	//gasCost: log.getCost(),
-	value:   '0x' + db.getBalance(log.contract.getAddress()).toString(16)
-      })
-
-      this.cslencounter += 1
-      this.cslen.push(this.cslencounter)
-      
       return      
     }
 
     if (op == 'CALL' || op == 'CALLCODE' || op == 'DELEGATECALL' || op == 'STATICCALL') {
       // Skip any pre-compile invocations, those are just fancy opcodes
       var to = toAddress(log.stack.peek(1).toString(16))
-      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr), calling: toHex(to) })
+      execution_trace = { contract: acc, pc: pc, op: op, calling: toHex(to) }
       if (isPrecompiled(to)) {
 	return
       }
 
-      // Add to the trace
-      var acc = toHex(to)
-      if (this.trace[acc] == undefined) {
-        var bytecode = toHex(db.getCode(to))
-        this.trace[acc] = {
-          chunks: this.chunkify(bytecode),
-          touched_chunks: [], // TODO
-          calls: []
-        }
-        
-      }
-      
-      var off = (op == 'DELEGATECALL' || op == 'STATICCALL' ? 0 : 1)
-
-      var inOff = log.stack.peek(2 + off).valueOf()
-      var inEnd = inOff + log.stack.peek(3 + off).valueOf()
-
-      // Assemble the internal call report and store for completion
-      var call = {
-	type:    op,
-	from:    toHex(log.contract.getAddress()),
-	to:      toHex(to),
-	input:   toHex(log.memory.slice(inOff, inEnd)),
-	//gasIn:   log.getGas(),
-	//gasCost: log.getCost(),
-	outOff:  log.stack.peek(4 + off).valueOf(),
-	outLen:  log.stack.peek(5 + off).valueOf()
-      }
-      
-      if (op != 'DELEGATECALL' && op != 'STATICCALL') {
-	call.value = '0x' + log.stack.peek(2).toString(16)
-      }
-      
-      this.callstack.push(call)
-      this.cslencounter += 1
-      this.cslen.push(this.cslencounter)
+      // TODO: add contract to this.contracts
       return
     }
 
     // If an existing call is returning, pop off the call stack
     if (op == 'REVERT') {
-      this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
-      //this.callstack[this.callstack.length - 1].error = "execution reverted"
       return
     }
-    this.ops.push({ pc: log.getPC(), op: op, contract: toHex(addr) })
-
-    //if (op == '
-    //this.ops.push(log.getPC())
-    //this.trace.push(log.op.toString())
-    //this.ops.push(log.op.toString())
+    this.execution.push(execution_trace)
   },
   result: function(ctx, db) {
-    // contracts
-    // opcodes
-    // callstack
-    // cslen
-    return { trace: this.trace,  opcodes: this.ops, callstack: this.callstack, cslen: this.cslen }
+	  // {
+	  // 	execution: [ { contract, pc, op, calling } ]
+	  // 	contracts: { address: { code, chunks, touched_chunks } }
+	  // }
+	  return {
+		  execution : this.execution,
+		  contracts : this.contracts,
+	  }
   },
   fault: function(log, db) {}
 }
