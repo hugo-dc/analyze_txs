@@ -42,6 +42,7 @@
     var acc = toHex(addr)
     var op = log.op.toString()
     var pc = log.getPC()
+    var chunk_number = Math.floor(pc / 32)
     var execution_trace = { contract: acc, pc: pc, op: op, calling: '' }
 
     if (this.contracts[acc] === undefined) {
@@ -49,10 +50,14 @@
       var chunks = this.chunkify(bytecode)
       // save initial contract
       this.contracts[acc] = {
-      code: bytecode,
-      chunks: chunks,
-      touched_chunks: [], // TODO
-      calls: []           // TODO
+        code: bytecode,
+        chunks: chunks,
+        touched_chunks: [chunk_number],
+        calls: []
+      }
+    } else {
+      if (this.contracts[acc].touched_chunks.lastIndexOf(chunk_number) < 0) {
+        this.contracts[acc].touched_chunks.push(chunk_number)
       }
     }
 
@@ -68,7 +73,13 @@
     if (op == 'CALL' || op == 'CALLCODE' || op == 'DELEGATECALL' || op == 'STATICCALL') {
       // Skip any pre-compile invocations, those are just fancy opcodes
       var to = toAddress(log.stack.peek(1).toString(16))
-      execution_trace = { contract: acc, pc: pc, op: op, calling: toHex(to) }
+      var hexTo = toHex(to)
+	    
+      execution_trace = { contract: acc, pc: pc, op: op, calling: hexTo }
+      if (this.contracts[acc].calls.lastIndexOf(hexTo) < 0) {
+        this.contracts[acc].calls.push(hexTo)
+      }
+
       if (isPrecompiled(to)) {
 	return
       }
