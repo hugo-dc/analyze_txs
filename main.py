@@ -41,38 +41,58 @@ def write_block(number, trace):
 #                tx1: { execution: [ { contract, pc, op, calling } ],
 #                       contracts: { address : { code, chunks, touched_chunks } }
 # }
-block_trace = {}
-block_number = get_current_block_number()
-block_trace[str(block_number)] = {}
 
-response = get_block(block_number)
-block = response['result']
+end_block = get_current_block_number()
+start_block = end_block - 50 
 
-contract = ''
-for ix, tx in enumerate(block['transactions']):
-    if tx['to'] != None:
-        payload = {
-            'method': 'eth_getCode',
-            'params': [tx['to'], hex(block_number)],
-            'id': 1
-        }
-        response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
-        code = response.json()['result']
-        if len(code) > 2:
+
+for block_number in range(start_block, end_block):
+
+    block_trace = {}
+    block_trace[str(block_number)] = {}
+
+    response = get_block(block_number)
+    block = response['result']
+
+
+    print("Tracing block:", block_number, "[", len(block['transactions']), "]")
+
+    contract = ''
+    ccall_found = False
+    for ix, tx in enumerate(block['transactions']):
+        if tx['to'] != None:
             payload = {
-                'method': 'debug_traceTransaction',
-                'params': [tx['hash'], {'tracer': tracer_script}],
+                'method': 'eth_getCode',
+                'params': [tx['to'], hex(block_number)],
                 'id': 1
             }
-
-            print('Tx: ', tx['hash'])
             response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
-            result = response.json()['result']
-            execution = result['execution']
-            contracts = result['contracts']
-            block_trace[str(block_number)][tx['hash']] = { 'execution': [], 'contracts': {} }
-            block_trace[str(block_number)][tx['hash']]['execution'] = execution
-            block_trace[str(block_number)][tx['hash']]['contracts'] = contracts
+            try:
+                code = response.json()['result']
+            except:
+                #print("Error while trying to get code for account", tx['to'])
+                continue
 
-write_block(block_number, block_trace)
+            if len(code) > 2:
+                ccall_found = True # TODO: Store found contract address in a list, so we don't need to call getCode
+                payload = {
+                    'method': 'debug_traceTransaction',
+                    'params': [tx['hash'], {'tracer': tracer_script}],
+                    'id': 1
+                }
+    
+                print('Tx: ', tx['hash'])
+                response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
+                try:
+                    result = response.json()['result']
+                    execution = result['execution']
+                    contracts = result['contracts']
+                    block_trace[str(block_number)][tx['hash']] = { 'execution': [], 'contracts': {} }
+                    block_trace[str(block_number)][tx['hash']]['execution'] = execution
+                    block_trace[str(block_number)][tx['hash']]['contracts'] = contracts
+                except:
+                    print("Error")
+
+    if ccall_found:
+        write_block(block_number, block_trace)
 
