@@ -42,18 +42,26 @@ def write_block(number, trace):
 #                       contracts: { address : { code, chunks, touched_chunks } }
 # }
 
-end_block = get_current_block_number()
-start_block = end_block - 50 
+#end_block = get_current_block_number()
+#start_block = 0  #end_block - 50 
 
 
-for block_number in range(start_block, end_block):
-
+block_number = 0
+while True:
     block_trace = {}
     block_trace[str(block_number)] = {}
 
     response = get_block(block_number)
-    block = response['result']
 
+    try:
+        block = response['result']
+    except:
+        print("Failed to retrieve block", block_number)
+        sleep(30)
+
+    if not 'transactions' in block.keys():
+        print("???: ", block)
+        continue
 
     print("Tracing block:", block_number, "[", len(block['transactions']), "]")
 
@@ -96,3 +104,4 @@ for block_number in range(start_block, end_block):
     if ccall_found:
         write_block(block_number, block_trace)
 
+    block_number = block_number + 1
