@@ -6,7 +6,7 @@ import requests
 head = {"Content-type": "application/json"}
 RPC_ENDPOINT = 'http://localhost:8545'
 
-ts_file = open('new_tracer.js', 'r')
+ts_file = open('op_tracer.js', 'r')
 tracer_script = ts_file.read()
 ts_file.close()
 
@@ -30,38 +30,48 @@ def get_block(blocknum):
     response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers= head)
     return response.json()
 
-def write_block(number, trace):
-    filename='data/block_' + str(number) + '.json'
-    output_file = open(filename, 'w')
-    output_file.write(json.dumps(trace, indent=4))
+def write_file(fname, data):
+    output_file = open(fname, 'w')
+    output_file.write(data)
     output_file.close()
-    print(filename)
 
-# block_number {
-#                tx1: { execution: [ { contract, pc, op, calling } ],
-#                       contracts: { address : { code, chunks, touched_chunks } }
-# }
+def write_trace(number, trace):
+    write_file('data/trace_block_' + str(number) + '.json', json.dumps(trace, indent=4))
 
-#end_block = get_current_block_number()
-#start_block = 0  #end_block - 50 
+def write_block(number, block_json):
+    filename='data/block_' + str(number) + '.json' 
+    write_file(filename, json.dumps(block_json, indent=4))
 
+def write_gas_table(gas_table):
+    filename='data/gas_table.json'
+    write_file(filename, json.dumps(gas_table, indent=4))
 
-block_number = 0
+last_block = get_current_block_number()
+start_block = last_block - 50 
+
+contracts = {}
+
+block_number = start_block
+
+gas_table = {}
+
 while True:
     block_trace = {}
     block_trace[str(block_number)] = {}
 
     response = get_block(block_number)
 
-    try:
-        block = response['result']
-    except:
-        print("Failed to retrieve block", block_number)
-        sleep(30)
+    #try:
+    #if True:
+    block = response['result']
+    write_block(block_number, block)
+    #except:
+    #    print("Failed to retrieve block", block_number)
+    #    sleep(30)
 
     if not 'transactions' in block.keys():
-        print("???: ", block)
-        continue
+        print("???: ", block_number)
+        exit(1)
 
     print("Tracing block:", block_number, "[", len(block['transactions']), "]")
 
@@ -69,17 +79,22 @@ while True:
     ccall_found = False
     for ix, tx in enumerate(block['transactions']):
         if tx['to'] != None:
-            payload = {
-                'method': 'eth_getCode',
-                'params': [tx['to'], hex(block_number)],
-                'id': 1
-            }
-            response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
-            try:
-                code = response.json()['result']
-            except:
-                #print("Error while trying to get code for account", tx['to'])
-                continue
+            if tx['to'] in contracts.keys():
+                code = contracts[tx['to']]
+            else:
+                payload = {
+                    'method': 'eth_getCode',
+                    'params': [tx['to'], hex(block_number)],
+                    'id': 1
+                }
+                response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
+                try:
+                    code = response.json()['result']
+                    if len(code) > 2:
+                        contracts[tx['to']] = code
+                except:
+                    print("Error while trying to get code for account", tx['to'])
+                    break
 
             if len(code) > 2:
                 ccall_found = True # TODO: Store found contract address in a list, so we don't need to call getCode
@@ -89,19 +104,33 @@ while True:
                     'id': 1
                 }
     
-                print('Tx: ', tx['hash'])
-                response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
+                #print('Tx: ', tx['hash'])
+                
                 try:
+                    response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers=head)
                     result = response.json()['result']
-                    execution = result['execution']
-                    contracts = result['contracts']
-                    block_trace[str(block_number)][tx['hash']] = { 'execution': [], 'contracts': {} }
-                    block_trace[str(block_number)][tx['hash']]['execution'] = execution
-                    block_trace[str(block_number)][tx['hash']]['contracts'] = contracts
+                    #execution = result['execution']
+                    #contracts = result['contracts']
+                    block_trace[str(block_number)][tx['hash']] = { 'histogram': {}, 'gas_used': 0 }
+                    block_trace[str(block_number)][tx['hash']]['histogram'] = result['histogram']
+                    block_trace[str(block_number)][tx['hash']]['gas_used'] = result['gas_used']
+
+                    table = result['gas_table']
+
+                    for k in table.keys():
+                        if k not in gas_table.keys():
+                            gas_table[k] = table[k]
+
                 except:
                     print("Error")
+                    print(response.json())
+                    print(len(contracts))
+                    block_number = get_current_block_number() - 50 
+                    break
 
     if ccall_found:
-        write_block(block_number, block_trace)
+        write_trace(block_number, block_trace)
+        write_gas_table(gas_table)
+
 
     block_number = block_number + 1
