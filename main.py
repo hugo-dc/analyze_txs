@@ -36,10 +36,10 @@ def write_file(fname, data):
     output_file.close()
 
 def write_trace(number, trace):
-    write_file('data/trace_block_' + str(number) + '.json', json.dumps(trace, indent=4))
+    write_file('data/traces/trace_block_' + str(number) + '.json', json.dumps(trace, indent=4))
 
 def write_block(number, block_json):
-    filename='data/block_' + str(number) + '.json' 
+    filename='data/blocks/block_' + str(number) + '.json' 
     write_file(filename, json.dumps(block_json, indent=4))
 
 def write_gas_table(gas_table):
