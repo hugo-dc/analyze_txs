@@ -275,3 +275,39 @@ def get_opcodes_by_name():
 
 by_name = get_opcodes_by_name()
 
+def get_op_counter():
+    opcounter = {}
+    for key in by_value:
+        opcounter[key] = 0
+    return opcounter
+
+def get_opnumber(opname):
+    if opname in by_name.keys():
+        return by_name[opname]
+    elif opname in aliases.keys():
+        opname = aliases[opname]
+        return get_opnumber(opname)
+    elif opname[:6] == 'opcode': # opcode ?? not defined
+        print(opname)
+        err_msg = opname.split(' ')
+        opvalue = int(err_msg[1], 16) # extract opcode number from error message
+        opname = by_value[opvalue]
+        return get_opnumber(opname)
+    else:
+        opvalue = int('0x' + opname, 16)
+        opname = by_value[opvalue]
+        return get_opnumber(opname)
+    print('ERROR: ', '`' + opname + '`', 'not found!')
+    print(by_name)
+    raise ValueError(opname)
+
+def update_op_counter(opcounter, opname, opvalue):
+    value = int(opvalue)
+    op_key = get_opnumber(opname)
+
+    opcounter[op_key] = value
+    #print(op_key, ':', opcounter[op_key])
+
+    return opcounter
+
+
