@@ -19,10 +19,10 @@ block_level_csv = []
 histogram_csv_file = open('data/histogram.csv', 'a')
 uniswap_csv_file = open('data/uniswap.csv', 'a')
 
-file_header = csv_util.get_csv_header(level='transaction')
+#file_header = csv_util.get_csv_header(level='transaction')
 # Write header into file
-for h in file_header:
-	histogram_csv_file.write(','.join(h) + '\n')
+#for h in file_header:
+#	histogram_csv_file.write(','.join(h) + '\n')
 
 
 async def main():
@@ -128,4 +128,8 @@ async def main():
 
 						await websocket.send(payload)
 
-asyncio.get_event_loop().run_until_complete(main())
+while 1:
+	try:	
+		asyncio.get_event_loop().run_until_complete(main())
+	except:
+		print('Conection closed...')
