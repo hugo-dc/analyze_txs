@@ -11,13 +11,40 @@ ts_file.close()
 
 tx_trace_ids = {}
 
-UNISWAP = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+gas_guzzlers = {
+	'0x7a250d5630b4cf539739df2c5dacb4c659f2488d': {
+		'ofile': open('data/uniswap.csv', 'a'),
+		'name': 'uniswap',
+		},
+	'0xdac17f958d2ee523a2206206994597c13d831ec7': {
+		'ofile': open('data/usdt.csv', 'a'),
+		'name': 'usdt',
+		},
+	'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': {
+		'ofile': open('data/usdc.csv', 'a'),
+		'name': 'usdc',
+		},
+	'0x881d40237659c251811cec9c364ef91dc08d300c': {
+		'ofile': open('data/mm_swap.csv', 'a'),
+		'name': 'mm_swap',
+		},
+	'0x11111112542d85b3ef69ae05771c2dccff4faa26': {
+		'ofile': open('data/1inch.csv', 'a'),
+		'name': '1inch',
+		},
+	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9': {
+		'ofile': open('data/aave.csv', 'a'),
+		'name': 'aave',
+		},
+}
+
+#UNISWAP = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 
 tx_level_csv = []
 block_level_csv = []
 
 histogram_csv_file = open('data/histogram.csv', 'a')
-uniswap_csv_file = open('data/uniswap.csv', 'a')
+#uniswap_csv_file = open('data/uniswap.csv', 'a')
 
 #file_header = csv_util.get_csv_header(level='transaction')
 # Write header into file
@@ -66,8 +93,8 @@ async def main():
 					if tx['to'] == None:
 						continue
 					tag = ''
-					if tx['to'].lower() == UNISWAP.lower():
-						tag = 'uniswap'
+					if tx['to'].lower() in gas_guzzlers.keys():
+						tag = gas_guzzlers[tx['to'].lower()]['name']
 					tx_id = 65 + count
 					payload = json.dumps({
 						'method': 'debug_traceTransaction',
@@ -80,6 +107,7 @@ async def main():
 					tx_trace_ids[tx_id] = { 
 						'blockNumber': tx['blockNumber'],
 						'transaction': tx['hash'],
+						'to': tx['to'].lower(),
 						'gas': tx['gas'],
 						'tag': tag,
 						'traced': False,
@@ -98,6 +126,7 @@ async def main():
 					if tr_result['contract_call'] == True: 
 						block_number = str(tx_trace_ids[tx_id]['blockNumber'])
 						tx_hash = tx_trace_ids[tx_id]['transaction']
+						tx_to = tx_trace_ids[tx_id]['to']
 						tag = tx_trace_ids[tx_id]['tag']
 						histogram = msg['result']['histogram']
 						gas = int(tx_trace_ids[tx_id]['gas'], 16)
@@ -112,8 +141,8 @@ async def main():
 						# Gets the correct order of opcodes, and write the value found in the trace, if the opcode is not found, then writes 0
 						file_line = [block_number, tx_hash, gas_used] + [str(tx_opcount[k]) if k in tx_opcount.keys() else '0' for k in opcodes.by_value.keys()]
 						histogram_csv_file.write(','.join(file_line) + '\n')
-						if tag == 'uniswap':
-							uniswap_csv_file.write(','.join(file_line) + '\n')
+						if tag != '':
+							gas_guzzlers[tx_to]['ofile'].write(','.join(file_line) + '\n')
 				else:
 					if 'error' in msg.keys():
 						# TODO: Try tracing again
@@ -129,7 +158,4 @@ async def main():
 						await websocket.send(payload)
 
 while 1:
-	try:	
-		asyncio.get_event_loop().run_until_complete(main())
-	except:
-		print('Conection closed...')
+	asyncio.get_event_loop().run_until_complete(main())
