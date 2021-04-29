@@ -38,19 +38,10 @@ gas_guzzlers = {
 		},
 }
 
-#UNISWAP = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
-
 tx_level_csv = []
 block_level_csv = []
 
 histogram_csv_file = open('data/histogram.csv', 'a')
-#uniswap_csv_file = open('data/uniswap.csv', 'a')
-
-#file_header = csv_util.get_csv_header(level='transaction')
-# Write header into file
-#for h in file_header:
-#	histogram_csv_file.write(','.join(h) + '\n')
-
 
 async def main():
 	subscribed = False
@@ -70,14 +61,11 @@ async def main():
 		
 			ev = await websocket.recv()
 			msg = json.loads(ev)
-			#print('>', msg)
 			if 'id' in msg.keys() and msg['id'] == 63:
 				print('subscribed', msg['result'])
 				subId = msg['result']
 			elif 'method' in msg.keys() and msg['method'] == 'eth_subscription' and msg['params']['subscription'] == subId:
 				block_data = msg['params']['result']
-				#print(json.dumps(block_data, indent=4))
-				#print(block_data['number'])
 				payload = json.dumps({
 					'method': "eth_getBlockByNumber",
 					'params': [block_data['number'], True],
@@ -88,7 +76,6 @@ async def main():
 			elif 'id' in msg.keys() and msg['id'] == 64:
 				block = msg['result']
 				count = 0
-				print('>>>', int(block['number'], 16))
 				for _, tx in enumerate(block['transactions']):
 					if tx['to'] == None:
 						continue
@@ -102,7 +89,6 @@ async def main():
 						'id': tx_id,
 						'jsonrpc': '2.0',
 					})
-					#print(tx_id, '-', tx['hash'])
 					tx_trace_ids[tx_id] = (tx['blockNumber'], tx['hash'])
 					tx_trace_ids[tx_id] = { 
 						'blockNumber': tx['blockNumber'],
@@ -116,9 +102,7 @@ async def main():
 					await websocket.send(payload)
 			elif 'id' in msg.keys() and msg['id'] >= 65:
 				tx_id = msg['id']
-				#print(tx_trace_ids[tx_id])
 				if 'result' in msg.keys():
-					#print(msg['result'])
 					tx_trace_ids[tx_id]['traced'] = True
 					tr_result = msg['result']
 
@@ -133,7 +117,6 @@ async def main():
 						gas_used = str(msg['result']['gas_used'])
 						gas_left = msg['result']['gas_left']
 
-						#print(tx_hash, gas_used)
 						tx_opcount = opcodes.get_op_counter()
 						for op in histogram:
 							tx_opcount = opcodes.update_op_counter(tx_opcount, op, histogram[op])
@@ -145,7 +128,7 @@ async def main():
 							gas_guzzlers[tx_to]['ofile'].write(','.join(file_line) + '\n')
 				else:
 					if 'error' in msg.keys():
-						# TODO: Try tracing again
+						# Try tracing again
 						tx_hash = tx_trace_ids[tx_id]['transaction']
 						print('>>', tx_hash, msg['error']['message'])
 						payload = json.dumps({
@@ -161,4 +144,4 @@ while 1:
 	try:
 		asyncio.get_event_loop().run_until_complete(main())
 	except:
-		print('...')
+		print('reconnecting...')
