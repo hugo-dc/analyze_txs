@@ -158,4 +158,7 @@ async def main():
 						await websocket.send(payload)
 
 while 1:
-	asyncio.get_event_loop().run_until_complete(main())
+	try:
+		asyncio.get_event_loop().run_until_complete(main())
+	except:
+		print('...')
