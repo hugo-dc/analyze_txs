@@ -1,3 +1,4 @@
+import time
 import asyncio
 import websockets
 import json
@@ -56,7 +57,6 @@ async def main():
 					'jsonrpc': '2.0',
 				})
 				result = await websocket.send(payload)
-				print(result)
 				subscribed = True
 		
 			ev = await websocket.recv()
@@ -85,7 +85,7 @@ async def main():
 					tx_id = 65 + count
 					payload = json.dumps({
 						'method': 'debug_traceTransaction',
-						'params': [tx['hash'], {'tracer': tracer_script}],
+						'params': [tx['hash'], {'tracer': tracer_script, 'timeout': '500s'}],
 						'id': tx_id,
 						'jsonrpc': '2.0',
 					})
@@ -114,23 +114,38 @@ async def main():
 						tag = tx_trace_ids[tx_id]['tag']
 						histogram = msg['result']['histogram']
 						gas = int(tx_trace_ids[tx_id]['gas'], 16)
-						gas_used = str(msg['result']['gas_used'])
-						gas_left = msg['result']['gas_left']
+						#gas_used = str(msg['result']['gas_used'])
+						start_gas = msg['result']['start_gas']
+						end_gas = msg['result']['end_gas']
+						gas_used = start_gas - end_gas
+						ctx_gas_used = msg['result']['gas_used']
+						#gas_left = msg['result']['gas_left']
 
 						tx_opcount = opcodes.get_op_counter()
 						for op in histogram:
 							tx_opcount = opcodes.update_op_counter(tx_opcount, op, histogram[op])
 						# Write line into histogram file
 						# Gets the correct order of opcodes, and write the value found in the trace, if the opcode is not found, then writes 0
-						file_line = [block_number, tx_hash, gas_used] + [str(tx_opcount[k]) if k in tx_opcount.keys() else '0' for k in opcodes.by_value.keys()]
+						file_line = [block_number, tx_hash, str(ctx_gas_used)] + [str(tx_opcount[k]) if k in tx_opcount.keys() else '0' for k in opcodes.by_value.keys()]
 						histogram_csv_file.write(','.join(file_line) + '\n')
 						if tag != '':
 							gas_guzzlers[tx_to]['ofile'].write(','.join(file_line) + '\n')
+						if tr_result['invalid']:
+							print(tx_to)
+							line = [tx_hash, str(gas), str(start_gas), str(end_gas), str(gas_used), str(ctx_gas_used)] #, str(gas_left)]
+							print(': ', line)
+							print('idc: ', tr_result['input_data_cost'])
+							print('ops: ', sum(tr_result['ops']))
+							#print('gas_left: ', end_gas)
+							#invalid_csv_file = open('data/invalid.csv', 'a')
+							#invalid_csv_file.write(','.join(line) + '\n')
+							#invalid_csv_file.close()
+
 				else:
 					if 'error' in msg.keys():
 						# Try tracing again
 						tx_hash = tx_trace_ids[tx_id]['transaction']
-						print('>>', tx_hash, msg['error']['message'])
+						#print('>>', tx_hash, msg['error']['message'])
 						payload = json.dumps({
 							'method': 'debug_traceTransaction',
 							'params': [tx_hash, {'tracer': tracer_script}],
@@ -141,7 +156,9 @@ async def main():
 						await websocket.send(payload)
 
 while 1:
-	try:
+	#try:
+	if True:
 		asyncio.get_event_loop().run_until_complete(main())
-	except:
-		print('reconnecting...')
+	#except:
+		#print('reconnecting...')
+	#	time.sleep(30)

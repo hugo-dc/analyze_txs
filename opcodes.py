@@ -288,7 +288,6 @@ def get_opnumber(opname):
         opname = aliases[opname]
         return get_opnumber(opname)
     elif opname[:6] == 'opcode': # opcode ?? not defined
-        print(opname)
         err_msg = opname.split(' ')
         opvalue = int(err_msg[1], 16) # extract opcode number from error message
         opname = by_value[opvalue]
