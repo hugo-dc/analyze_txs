@@ -1,7 +1,7 @@
 import requests
 import json
 
-head = {"Content-type": "application/json"}
+HEAD = {"Content-type": "application/json"}
 RPC_LOCAL = 'http://localhost:8545'
 RPC_INFURA = open('./infura_data.txt', 'r').read().strip()
 RPC_MAZLAB = 'http://192.168.1.82:8545'
@@ -13,6 +13,10 @@ CACHEDIR = './cache/'
 ts_file = open('op_tracer.js', 'r')
 tracer_script = ts_file.read()
 ts_file.close()
+
+def execute_request(payload):
+    response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers = HEAD)
+    return response.json()
 
 def set_rpc_endpoint(ep):
     global RPC_ENDPOINT
@@ -32,29 +36,13 @@ def read_cache_file(fname):
     cache_file.close()
     return result
 
-def write_cache_file(fname, data):
-    cache_file = open(fname, 'w')
-    cache_file.write(data)
-    cache_file.close()
-
 def get_block_by_number(blocknum):
-    blocks = read_cache_file(CACHEDIR + 'blocks.json')
-
-    if str(blocknum) in blocks.keys():
-        return blocks[str(blocknum)]
-
     payload = {
         'method': 'eth_getBlockByNumber',
         'params': [hex(blocknum), True],
         'id': 1
     }
-
-    response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers= head)
-
-    blocks[blocknum] = response.json()
-    write_cache_file(CACHEDIR + 'blocks.json', json.dumps(blocks, indent=4, sort_keys=False))
-
-    return response.json()
+    return execute_request(payload)
 
 def get_transaction_receipt(tx_hash):
     payload = {
@@ -62,8 +50,7 @@ def get_transaction_receipt(tx_hash):
         'params': [tx_hash],
         'id': 1
     }
-    response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers = head)
-    return response.json()
+    return execute_request(payload)
 
 def trace_transaction(tx_hash, tracer):
     payload = {
@@ -71,5 +58,14 @@ def trace_transaction(tx_hash, tracer):
         'params': [tx_hash, {'tracer': tracer}],
         'id': 1
     }
-    response = requests.post(RPC_ENDPOINT, data=json.dumps(payload), headers = head)
-    return response.json()
+    return execute_request(payload)
+
+def block_number():
+    payload = {
+            'method': 'eth_blockNumber',
+            'params': [],
+            'id': 1
+    }
+    response = execute_request(payload)
+    return response
+
