@@ -55,7 +55,7 @@ def get_transaction_receipt(tx_hash):
 def trace_transaction(tx_hash, tracer):
     payload = {
         'method': 'debug_traceTransaction',
-        'params': [tx_hash, {'tracer': tracer}],
+        'params': [tx_hash, {'tracer': tracer, 'timeout': '500s'}],
         'id': 1
     }
     return execute_request(payload)

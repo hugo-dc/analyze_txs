@@ -1,31 +1,35 @@
 {
   contracts: {},
-  chunks: {},
-  execution: [],
+  extcodecopy_found: false,
+  
   touchPC: function(contract, pc) {
-    if (!(contract in this.contracts)) {
-      this.contracts[contract] = {}  
-    }
-
     var touchedChunk = Math.floor(pc / 32)
-    this.chunks[touchedChunk] = true
-    this.contracts[contract][touchedChunk] = true
+
+    if (this.contracts[contract]['chunks'].indexOf(touchedChunk) < 0) {
+      this.contracts[contract]['chunks'].push(touchedChunk)
+    }
   },
   touchRange: function(contract, from, to) {
     var fcid = Math.floor(from / 32)
     var tcid = Math.floor(to / 32)
 
     for (i = fcid; i < tcid + 1; i++) {
-
+      if (this.contracts[contract]['chunks'].indexOf(touchedChunk) < 0) {
+        this.contracts[contract]['chunks'].push(i)
+      }
     }
   },
   step: function(log, db) {
     var addr = toHex(log.contract.getAddress())
     var op = log.op.toString()
     var pc = log.getPC()
-   
+
+    if (!(addr in this.contracts)) {
+      this.contracts[addr] = { 'chunks': [] }
+    }
+
     this.touchPC(addr, pc)
-    this.execution.push([pc, op])
+
     // CODECOPY
     if (op == 'CODECOPY') {
       // get offset
@@ -47,9 +51,7 @@
   },
   result: function(ctx, db) {
     return {
-      //'execution': this.execution,
       'contracts': this.contracts,
-      //'chunks': this.chunks,
     }
   },
   fault: function(log, db) {
